@@ -320,6 +320,6 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 }
 
+// bunadan sonra böyle  
 
 
-// bunadan sonra böyle 
