@@ -1,0 +1,50 @@
+name: flutter_application_1
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_tts: ^3.8.2
+  camera: ^0.10.5+9 # ✅ Kamera paketi eklendi
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1 # Bu satırı ekleyin (en son sürümü kontrol edin)
+  flutter_native_splash: ^2.3.11 
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/app_icon/      # Uygulama simgesi klasörünüz
+    - assets/splash_images/ # Başlangıç ekranı görsel klasörünüz
+
+flutter_launcher_icons:
+  android: "launcher_icon" # Android için varsayılan ikon adı
+  ios: false
+  image_path: "C:\\Durugoru\\flutter_application_1\\flutter_application_1\\assets\\app_icon\\logo.png" # İkon görseli yolu
+  # adaptive_icon_background: "#FFFFFF" # Android 8+ için adaptif ikonun arka plan rengi
+  adaptive_icon_background: "#000000" # Siyah arka plan     
+  adaptive_icon_foreground: "C:\\Durugoru\\flutter_application_1\\flutter_application_1\\assets\\app_icon\\logo.png" # İkon görseli yolu
+  # adaptive_icon_background: "#ffffff" # Android 8+ için adaptif ikonun arka plan rengi
+  # adaptive_icon_foreground: "assets/app_icon/icon_foreground.png" # Android 8+ için adaptif ikonun ön plan görseli
+
+flutter_native_splash:
+  color: "#000000" # Başlangıç ekranının arka plan rengi (siyah)
+  background_image: "C:\\Durugoru\\flutter_application_1\\flutter_application_1\\assets\\splash_images\\logo.png" # Tam ekran arka plan görseli (isteğe bağlı)
+  # veya background_color: "#FFFFFF" # Arka plan rengi (görsel yerine renk kullanabilirsiniz)
+  image: "C:\\Durugoru\\flutter_application_1\\flutter_application_1\\assets\\splash_images\\logo.png" # Başlangıç ekranında ortalanacak görsel
+  # color: "#FFFFFF" # Eski sürüm için arka plan rengi, background_color yerine kullanılırdı
+  android: true # Android için başlangıç ekranı oluştur
+  ios: false    # iOS için başlangıç ekranı oluştur (isteğiniz üzerine false yaptım)
+  android_gravity: center # Android'de görseli ortala (diğerleri: fill, top, bottom, etc.)
+  # branding_mode: bottom # Alt kısma marka logosu eklemek için (isteğe bağlı)
+  # branding_image: "assets/branding_logo.png" # Marka logosu görseli (isteğe bağlı)
