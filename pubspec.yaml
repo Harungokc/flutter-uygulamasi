@@ -13,6 +13,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_tts: ^3.8.2
   camera: ^0.10.5+9 # ✅ Kamera paketi eklendi
+  speech_to_text: ^7.0.0 # ✅ Sesli komut algılama paketi eklendi
 
 dev_dependencies:
   flutter_test:
@@ -26,6 +27,7 @@ flutter:
   assets:
     - assets/app_icon/      # Uygulama simgesi klasörünüz
     - assets/splash_images/ # Başlangıç ekranı görsel klasörünüz
+    - assets/images/
 
 flutter_launcher_icons:
   android: "launcher_icon" # Android için varsayılan ikon adı

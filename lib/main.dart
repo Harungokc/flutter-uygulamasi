@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:camera/camera.dart';
-// iOS için Flutter TTS ses kategorisi ayarlamaları için gerekli import'lar
-// Bu import'lar sadece iOS'e özel olduğu için artık gerekli değil.
-// import 'package:flutter_tts/gen/ios_text_to_speech_audio_category.dart';
-// import 'package:flutter_tts/gen/ios_text_to_speech_audio_category_options.dart';
-// import 'package:flutter_tts/gen/ios_text_to_speech_audio_mode.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'dart:async'; // Zamanlayıcı için gerekli import
 
 // Uygulama genelinde kullanılacak kamera listesi.
 // Başlangıçta null olabilir, kamera bulunamazsa boş liste olarak ayarlanır.
@@ -47,18 +44,21 @@ class AccessibleApp extends StatelessWidget {
       title: 'DuruGörü', // Uygulamanın başlığı
       debugShowCheckedModeBanner: false, // Debug bandını gizler
       theme: ThemeData.dark().copyWith(
-        // Koyu tema ayarları
-        scaffoldBackgroundColor: const Color.fromARGB(
-          255,
-          0,
-          0,
-          0,
-        ), // Arka plan rengi
+        // Uygulama arka plan rengini koyu gri/mavi-gri tonu yapıyoruz.
+        // Bu, logonun öne çıkmasına yardımcı olacaktır.
+        scaffoldBackgroundColor: Colors.blueGrey[900],
         textTheme: const TextTheme(
           bodyLarge: TextStyle(
             color: Colors.white,
             fontSize: 24,
           ), // Varsayılan metin stili
+        ),
+        // AppBar ve diğer bileşenler için hala koyu renkler uygun
+        primaryColor: Colors.black,
+        appBarTheme: AppBarTheme(
+          // 'withOpacity' yerine 'withAlpha' kullanıldı.
+          backgroundColor: Colors.black.withAlpha((255 * 0.8).round()),
+          foregroundColor: Colors.white,
         ),
       ),
       home: const DetectionHomePage(), // Uygulamanın başlangıç ekranı
@@ -78,14 +78,37 @@ class DetectionHomePage extends StatefulWidget {
 class _DetectionHomePageState extends State<DetectionHomePage> {
   // FlutterTts örneği oluşturulur.
   final FlutterTts _flutterTts = FlutterTts();
+  // SpeechToText örneği oluşturulur.
+  final SpeechToText _speechToText = SpeechToText();
   // TTS'in başlatılıp başlatılmadığını tutan durum değişkeni.
   bool _isTtsInitialized = false;
+  // Sesli komutun o anda dinlemede olup olmadığını tutan durum değişkeni.
+  bool _isListening = false;
+  // Otomatik dinlemeyi durdurmak için kullanılacak zamanlayıcı.
+  Timer? _listeningTimer;
 
   @override
   void initState() {
     super.initState();
-    // Widget ilk oluşturulduğunda TTS'i başlatır.
-    _initializeTts();
+    // TTS'i başlat ve tamamlandığında hoş geldiniz mesajını konuş.
+    _initializeTts().then((_) {
+      // Hoş geldiniz mesajı konuştuktan sonra mikrofonu başlatmayı planla.
+      // Mesajın süresi yaklaşık 5 saniye olduğu için biraz daha fazla bekleyelim.
+      Future.delayed(const Duration(seconds: 7), () async {
+        if (!mounted) return; // Widget hala ekranda mı kontrol et
+        bool speechInitialized = await _initializeSpeechToText();
+        if (speechInitialized && _isTtsInitialized) {
+          _startListening(); // Otomatik olarak dinlemeyi başlat
+        } else {
+          // Eğer SpeechToText initialize olamazsa, kullanıcıya sesli bir uyarı ver
+          if (_isTtsInitialized) {
+            await _speak(
+              "Sesli komutlar başlatılamadı. Lütfen mikrofon izinlerini ve internet bağlantınızı kontrol edin.",
+            );
+          }
+        }
+      });
+    });
   }
 
   // TTS'i başlatmak ve yapılandırmak için asenkron metod.
@@ -116,28 +139,15 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
       await _flutterTts.setVolume(0.8); // Ses seviyesi
       await _flutterTts.setPitch(1.0); // Ses perdesi
 
-      // iOS için özel ayarlar kaldırıldı.
-      // if (Theme.of(context).platform == TargetPlatform.iOS) {
-      //   await _flutterTts.setSharedInstance(true);
-      //   await _flutterTts.setIosAudioCategory(
-      //     IosTextToSpeechAudioCategory.playback,
-      //     [
-      //       IosTextToSpeechAudioCategoryOptions.allowBluetooth,
-      //       IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
-      //       IosTextToSpeechAudioCategoryOptions.mixWithOthers,
-      //     ],
-      //     IosTextToSpeechAudioMode.spokenAudio,
-      //   );
-      // }
-
       // TTS başarıyla başlatıldı, durumu güncelle.
       setState(() {
         _isTtsInitialized = true;
       });
 
       // Uygulama hoş geldiniz mesajını konuş.
+      // Mikrofonu başlatmadan önce sadece hoş geldiniz mesajı.
       await _speak(
-        "DuruGörü uygulamasına hoş geldiniz. Algılamayı başlatmak için butona dokunun.",
+        "DuruGörüye hoş geldiniz. Lütfen başlamak için sesli komut verin.",
       );
     } catch (e) {
       // TTS başlatma sırasında herhangi bir hata olursa yakala ve logla.
@@ -148,10 +158,30 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
     }
   }
 
+  // SpeechToText'i başlatmak ve izinleri kontrol etmek için asenkron metod.
+  Future<bool> _initializeSpeechToText() async {
+    // Burada speech_to_text'in initialize metodu çağrılıyor.
+    // onError ve onStatus callback'leri hata ayıklama için kullanılır.
+    bool hasSpeech = await _speechToText.initialize(
+      onError: (val) => debugPrint("Speech to Text Hatası: ${val.errorMsg}"),
+      // val doğrudan String durumunu döndürüyor, .status'a gerek yok.
+      onStatus: (val) => debugPrint("Speech to Text Durumu: $val"),
+      debugLogging: true, // Hata ayıklama için detaylı logları açar
+    );
+
+    if (hasSpeech) {
+      debugPrint("Speech to Text başarıyla başlatıldı.");
+    } else {
+      debugPrint(
+        "Speech to Text başlatılamadı. Cihaz desteklemiyor olabilir veya izin yok.",
+      );
+      // Hata durumunda sesli uyarı initState'de veriliyor.
+    }
+    return hasSpeech;
+  }
+
   // Metin okuma metodunun kendisi.
   Future<void> _speak(String text) async {
-    // Eğer TTS başlatılmamışsa tekrar başlatmayı deneme,
-    // _isTtsInitialized bayrağına göre butonlar zaten devre dışı kalmalı.
     if (!_isTtsInitialized) {
       debugPrint(
         "TTS henüz başlatılmadı veya başlatılırken hata oluştu. Konuşma yapılamıyor.",
@@ -160,12 +190,10 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
     }
 
     try {
-      // Her konuşma öncesi dil ayarını yenile (gereksiz olabilir ama sağlamlık için).
       await _flutterTts.setLanguage("tr-TR");
       await _flutterTts.speak(text);
     } catch (e) {
       debugPrint("Konuşma hatası: $e");
-      // Hata durumunda alternatif dil kodu dene (bazı cihazlar için "tr" gerekebilir).
       try {
         await _flutterTts.setLanguage("tr");
         await _flutterTts.speak(text);
@@ -175,17 +203,101 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
     }
   }
 
-  // Algılama başlatma butonu işlevi.
-  void _startDetection() async {
-    await _speak("Algılama başlatıldı.");
+  // Sesli komut dinlemeyi başlatma metodu
+  void _startListening() async {
+    // Eğer SpeechToText mevcut değilse, dinleme başlatılamaz.
+    if (!_speechToText.isAvailable) {
+      debugPrint("Dinleme başlatılamadı: SpeechToText servisi mevcut değil.");
+      return;
+    }
 
-    // Konuşmanın bitmesi için kısa bir gecikme.
-    await Future.delayed(const Duration(seconds: 2));
+    // Eğer zaten dinlemedeysek, önceki oturumu ve zamanlayıcıyı iptal et.
+    // Bu, hem manuel tekrar başlatmalarda hem de otomatik başlatmanın tekrar tetiklenmesi durumunda önemlidir.
+    if (_isListening) {
+      _stopListening();
+      await Future.delayed(const Duration(milliseconds: 200)); // Kısa gecikme
+    }
+
+    setState(() {
+      _isListening = true;
+    });
+
+    // Kullanıcıya sesli geri bildirim ver: Dinleme başladı.
+    if (_isTtsInitialized) {
+      await _speak(
+        "Dinliyorum. Başlatmak için start deyin. Otomatik olarak 30 saniye sonra duracağım.",
+      );
+    }
+
+    _speechToText.listen(
+      onResult: (result) {
+        debugPrint("Tanınan metin: ${result.recognizedWords}");
+        // "start" komutunu algıla (büyük/küçük harf duyarlı değil)
+        if (result.recognizedWords.toLowerCase().contains("start")) {
+          _startDetection(); // Algılamayı başlat
+        }
+        if (result.finalResult) {
+          // Nihai sonuç geldiğinde dinlemeyi durdur (ve zamanlayıcıyı iptal et)
+          _stopListening();
+        }
+      },
+      localeId: "tr_TR", // Türkçe dil kodu
+      onSoundLevelChange: (level) => debugPrint("Ses Seviyesi: $level"),
+      listenFor: const Duration(
+        seconds: 25,
+      ), // Mikrofonun tek seferde dinleyeceği süre (artırıldı)
+      pauseFor: const Duration(
+        seconds: 6,
+      ), // Sessizlik sonrası duraklama süresi (artırıldı)
+      // ignore: deprecated_member_use
+      partialResults:
+          true, // Kısmi sonuçları da almayı sağlar (hata ayıklama için faydalı)
+    );
+
+    // 30 saniye sonra dinlemeyi otomatik olarak durduracak zamanlayıcıyı başlat
+    _listeningTimer?.cancel(); // Önceki zamanlayıcı varsa iptal et
+    _listeningTimer = Timer(const Duration(seconds: 30), () {
+      if (!mounted) return; // Widget hala ekranda mı kontrol et
+      if (_isListening) {
+        // Sadece hala dinlemede ise durdur
+        _stopListening();
+        if (_isTtsInitialized) {
+          _speak("Sesli komut dinleme otomatik olarak durduruldu.");
+        }
+      }
+    });
+  }
+
+  // Sesli komut dinlemeyi durdurma metodu
+  void _stopListening() {
+    if (!_isListening) return; // Zaten dinlemiyorsa işlem yapma
+
+    _speechToText.stop(); // Konuşma tanıma servisini durdur
+    _listeningTimer?.cancel(); // Zamanlayıcıyı da iptal et
+    setState(() {
+      _isListening = false;
+    });
+    debugPrint("Dinleme durduruldu.");
+  }
+
+  // Algılama başlatma işlevi (hem logo butonu hem de sesli komut için)
+  void _startDetection() async {
+    // Eğer sesli komutla başlatıldıysa, aktif dinlemeyi durdur.
+    if (_isListening) {
+      _stopListening();
+    }
+
+    // Uygulama aktif olurken seslendirme
+    await _speak(
+      "DuruGörü aktif, kameranız açılıyor, tehditler algılanmaya hazır.",
+    );
+
+    // Seslendirme bitene kadar bekle (yaklaşık 5 saniye sürebilir)
+    await Future.delayed(const Duration(seconds: 5));
 
     // Kameraların mevcut olup olmadığını kontrol et.
     if (cameras != null && cameras!.isNotEmpty) {
-      // Navigasyon öncesi widget'ın hala ekranda olup olmadığını kontrol et.
-      if (!mounted) return;
+      if (!mounted) return; // Widget hala ekranda mı kontrol et
       // Eğer kamera varsa, CameraScreen'e geç.
       Navigator.push(
         context,
@@ -200,44 +312,31 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
     }
   }
 
-  // Türkçe ses testi butonu işlevi.
-  void _testTurkishSpeech() async {
-    await _speak(
-      "Bu bir Türkçe test konuşmasıdır. Eğer beni anlıyorsanız, Türkçe dil desteği çalışıyor demektir.",
-    );
-  }
-
   @override
   void dispose() {
-    // Widget yok edildiğinde TTS motorunu durdur.
+    // Widget yok edildiğinde tüm servisleri ve zamanlayıcıları serbest bırak.
     _flutterTts.stop();
+    _speechToText.stop();
+    _listeningTimer?.cancel(); // Uygulama kapatılırken zamanlayıcıyı iptal et
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       body: Stack(
         children: [
-          // "DuruGörü" yazısı ekranın üst yarısının ortasında.
+          // Durum göstergeleri (TTS ve Mikrofon) ekranın üst kısmında ortalanmış.
           Positioned(
-            top: screenHeight * 0.2,
+            top: screenHeight * 0.15,
             left: 0,
             right: 0,
             child: Center(
               child: Column(
                 children: [
-                  Text(
-                    'DuruGörü',
-                    style: const TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
                   // TTS durumu göstergesi (hazır veya yükleniyor).
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -259,41 +358,67 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  // Mikrofon dinleme durumu göstergesi (sadece STT mevcutsa göster)
+                  if (_speechToText.isAvailable)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _isListening ? Colors.redAccent : Colors.grey,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _isListening ? 'Dinliyor...' : 'Sesli Komut Hazır',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
           ),
 
-          // Algılamayı Başlat butonu ekranın tam ortasında.
+          // Algılamayı Başlat butonu (LOGO BUTONU) ekranın tam ortasında.
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ElevatedButton.icon(
+                ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 20,
-                    ),
-                    textStyle: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                    backgroundColor: Colors.black, // Logo arka planı siyah
+                    foregroundColor: Colors.white,
+                    // Genişliği ekran genişliğinin %35'i kadar kare bir alan
+                    minimumSize: Size(screenWidth * 0.35, screenWidth * 0.35),
+                    shape: const StadiumBorder(), // Akuatik model (oval)
+                    padding: EdgeInsets.zero, // İç boşluğu sıfırla
+                  ),
+                  // Logo butonu her zaman aktif olacak (sadece TTS hazırsa)
+                  onPressed: _isTtsInitialized
+                      ? _startDetection // _isListening kontrolü kaldırıldı
+                      : null,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Image.asset(
+                      'assets/images/logo.png', // Logo dosyanızın yolu
+                      fit: BoxFit.contain, // Logoyu kutuya sığdır
                     ),
                   ),
-                  icon: const Icon(Icons.hearing), // İşitme simgesi
-                  label: const Text("Algılamayı Başlat"),
-                  // TTS hazırsa butonu etkinleştir, yoksa devre dışı bırak.
-                  onPressed: _isTtsInitialized ? _startDetection : null,
                 ),
 
-                const SizedBox(height: 20),
-
-                // Türkçe ses testi butonu.
+                const SizedBox(height: 30), // Butonlar arası boşluk
+                // Sesli Komutu Başlat/Durdur Butonu
+                // Bu buton artık dinlemeyi manuel olarak kontrol etmek için kullanılır.
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
+                    backgroundColor: _isListening
+                        ? Colors.red
+                        : Colors.green, // Dinlemedeyse kırmızı, değilse yeşil
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
@@ -301,11 +426,31 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
                     ),
                     textStyle: const TextStyle(fontSize: 18),
                   ),
-                  icon: const Icon(Icons.volume_up), // Ses simgesi
-                  label: const Text("Türkçe Ses Testi"),
-                  onPressed: _isTtsInitialized ? _testTurkishSpeech : null,
+                  icon: Icon(_isListening ? Icons.mic_off : Icons.mic),
+                  label: Text(
+                    _isListening ? "Dinlemeyi Durdur" : "Sesli Komutu Başlat",
+                  ),
+                  // Eğer STT ve TTS hazırsa buton aktif
+                  onPressed: _speechToText.isAvailable && _isTtsInitialized
+                      ? (_isListening ? _stopListening : _startListening)
+                      : null,
                 ),
               ],
+            ),
+          ),
+
+          // Sağ en altta "DuruGörü" yazısı
+          Positioned(
+            bottom: 20,
+            right: 20,
+            child: Text(
+              'DuruGörü',
+              style: TextStyle(
+                // 'withOpacity' yerine 'withAlpha' kullanıldı.
+                color: Colors.white.withAlpha((255 * 0.5).toInt()),
+                fontSize: 14,
+                fontWeight: FontWeight.w300,
+              ),
             ),
           ),
         ],
