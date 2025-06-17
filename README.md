@@ -16,7 +16,7 @@ For help getting started with Flutter development, view the
 samples, guidance on mobile development, and a full API reference.
 
 ## Creators
-**Harun**
-**Emir**
-**Mustafa**
-**veli**
+**Harun-gokce**
+**Emir-guncu**
+**Mustafa-bay**
+**veli-yıkılmaz**
