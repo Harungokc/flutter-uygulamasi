@@ -12,14 +12,17 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   flutter_tts: ^3.8.2
-  camera: ^0.10.5+9 # ✅ Kamera paketi eklendi
+  camera: ^0.11.1 # ✅ Kamera paketi eklendi
   speech_to_text: ^7.0.0 # ✅ Sesli komut algılama paketi eklendi
+  image: ^4.1.7 # ✅ Görüntü işleme için image paketi eklendi
+  tflite_flutter: 0.11.0 # ✅ TensorFlow Lite Flutter paketi eklendi
+
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-  flutter_launcher_icons: ^0.13.1 # Bu satırı ekleyin (en son sürümü kontrol edin)
+  flutter_launcher_icons: ^0.13.1 # Uygulama simgesi oluşturma paketi
   flutter_native_splash: ^2.3.11 
 
 flutter:
@@ -28,6 +31,9 @@ flutter:
     - assets/app_icon/      # Uygulama simgesi klasörünüz
     - assets/splash_images/ # Başlangıç ekranı görsel klasörünüz
     - assets/images/
+    - assets/images/test_image.jpg
+    - assets/models/labels.txt
+    - assets/models/mobilenet_v2_035_128_classification.tflite
 
 flutter_launcher_icons:
   android: "launcher_icon" # Android için varsayılan ikon adı

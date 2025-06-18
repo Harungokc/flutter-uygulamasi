@@ -45,26 +45,26 @@ packages:
     dependency: "direct main"
     description:
       name: camera
-      sha256: dfa8fc5a1adaeb95e7a54d86a5bd56f4bb0e035515354c8ac6d262e35cec2ec8
+      sha256: "413d2b34fe28496c35c69ede5b232fb9dd5ca2c3a4cb606b14efc1c7546cc8cb"
       url: "https://pub.dev"
     source: hosted
-    version: "0.10.6"
-  camera_android:
+    version: "0.11.1"
+  camera_android_camerax:
     dependency: transitive
     description:
-      name: camera_android
-      sha256: "08808be7e26fc3c7426c81b3fa387564b8e9c22e6fe9cb5675ce3ab7017d8203"
+      name: camera_android_camerax
+      sha256: b4197bd6ce75bc66963a904c34c4cbb6aaa2260a5d4aca13b3556926cf3a92b8
       url: "https://pub.dev"
     source: hosted
-    version: "0.10.10+3"
+    version: "0.6.18+3"
   camera_avfoundation:
     dependency: transitive
     description:
       name: camera_avfoundation
-      sha256: ca244564876d5a76f2126bca501aec25243cad23ba1784819242aea2fd25cf70
+      sha256: "25837fd84038c9023213d83bed4466b90b96868df2077185fb47048b82dfb917"
       url: "https://pub.dev"
     source: hosted
-    version: "0.9.19+2"
+    version: "0.9.19+3"
   camera_platform_interface:
     dependency: transitive
     description:
@@ -233,7 +233,7 @@ packages:
     source: hosted
     version: "0.15.6"
   image:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: image
       sha256: "4e973fcf4caae1a4be2fa0a13157aa38a8f9cb049db6529aa00b4d71abc4d928"
@@ -344,6 +344,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.2"
+  quiver:
+    dependency: transitive
+    description:
+      name: quiver
+      sha256: ea0b925899e64ecdfbf9c7becb60d5b50e706ade44a85b2363be2a22d88117d2
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.2.2"
   sky_engine:
     dependency: transitive
     description: flutter
@@ -421,6 +429,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.4"
+  tflite_flutter:
+    dependency: "direct main"
+    description:
+      name: tflite_flutter
+      sha256: "48e6fde2ad97162bb66a16a142f4c4698add9e8cd397ce9d1cc7451b55537ac1"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.11.0"
   typed_data:
     dependency: transitive
     description:
@@ -479,4 +495,4 @@ packages:
     version: "3.1.3"
 sdks:
   dart: ">=3.8.1 <4.0.0"
-  flutter: ">=3.27.0"
+  flutter: ">=3.29.0"
