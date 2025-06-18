@@ -545,7 +545,7 @@ class _CameraScreenState extends State<CameraScreen> {
         if (maxScore > 0.5) {
           // %50 olasılıktan yüksekse seslendir
           await _flutterTts.speak(
-            'Test görselinde algılandı: $predictedLabel, Olasılık: ${maxScore.toStringAsFixed(2)}',
+            'Dikkat!Test görseli algılandı: $predictedLabel, Olasılık: ${maxScore.toStringAsFixed(2)}',
           );
           debugPrint(
             'Test Tahmin: $predictedLabel (Olasılık: ${maxScore.toStringAsFixed(2)})',

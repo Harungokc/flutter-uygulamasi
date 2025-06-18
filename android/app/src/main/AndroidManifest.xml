@@ -11,8 +11,7 @@
         android:label="DuruGörü"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
-        android:enableOnBackInvokedCallback="true"
-        android:roundIcon="@mipmap/ic_launcher_round">
+        android:enableOnBackInvokedCallback="true">
           
 
         <activity
