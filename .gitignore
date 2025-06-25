@@ -38,8 +38,112 @@ app.*.symbols
 
 # Obfuscation related
 app.*.map.json
-
+# ekleme
 # Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+
+# Flutter/Dart
+.dart_tool/
+.idea/
+.packages
+.project
+build/
+ios/Pods/
+ios/Flutter/App.framework
+ios/Flutter/engine.a
+ios/Flutter/flutter_assets/
+*.iml
+*.hprof
+*.keystore
+*.jks
+
+# Android
+.gradle/
+app/src/main/assets/flutter_assets/
+android/app/src/main/assets/flutter_assets/
+android/app/build/
+android/build/
+/android/key.properties
+/android/local.properties
+/android/app/google-services.json
+
+# iOS
+/ios/Flutter/Generated.xcconfig
+/ios/Runner/GeneratedPluginRegistrant.h
+/ios/Runner/GeneratedPluginRegistrant.m
+/ios/Runner.xcworkspace/contents.xcworkspacedata
+/ios/Runner.xcworkspace/xcshareddata/
+/ios/Runner.xcodeproj/project.xcworkspace/
+/ios/Runner.xcodeproj/xcuserdata/
+
+# Windows
+/windows/flutter/ephemeral
+/windows/flutter/generated_plugin_registrant.cc
+/windows/flutter/generated_plugin_registrant.h
+/windows/flutter/generated_plugins.cmake
+/windows/CMakeLists.txt.user
+/windows/runner/Debug/
+/windows/runner/Release/
+/windows/runner/Profile/
+/windows/runner/flutter_assets/
+/windows/runner/generated_plugin_registrant.cc
+/windows/runner/generated_plugin_registrant.h
+/windows/runner/generated_plugins.cmake
+/windows/vs.gdb.v8.json
+.vs/
+
+# Linux
+/linux/flutter/ephemeral
+/linux/flutter/generated_plugin_registrant.cc
+/linux/flutter/generated_plugin_registrant.h
+/linux/flutter/generated_plugins.cmake
+/linux/CMakeLists.txt.user
+/linux/main.cc.d
+/linux/flutter_assets/
+
+# macOS
+/macos/Flutter/ephemeral
+/macos/Flutter/Generated.xcconfig
+/macos/Flutter/GeneratedPluginRegistrant.swift
+/macos/Pods/
+/macos/Runner.xcworkspace/
+/macos/firebase_app_id_file.json
+/macos/Flutter/flutter_assets/
+
+# Web
+/web/flutter_bootstrap.js
+/web/flutter_bootstrap.js.map
+
+# hata düzeltildikten sonra kaldırılmalı 
+# ekleme
+.build/
+.swiftpm/
+migrate_working_dir/
+*.iml
+*.ipr
+*.iws
+.idea/
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+app.*.symbols
+app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
