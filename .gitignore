@@ -81,3 +81,5 @@ android/build/
 /web/flutter_bootstrap.js
 /web/flutter_bootstrap.js.map
 
+# hata düzeltildikten sonra kaldırılmalı 
+.flutter-plugins-dependencies
