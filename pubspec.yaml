@@ -33,23 +33,23 @@ flutter:
     - assets/images/
     - assets/images/test_image.jpg
     - assets/models/labels.txt
-    - assets/models/mobilenet_v2_035_128_classification.tflite
+    - assets/models/yolov8n_float32.tflite
 
 flutter_launcher_icons:
   android: "launcher_icon" # Android için varsayılan ikon adı
   ios: false
-  image_path: "C:\\Durugoru\\flutter_application_1\\flutter_application_1\\assets\\app_icon\\logo.png" # İkon görseli yolu
+  image_path: "assets/images/logo.png" # İkon görseli yolu
   # adaptive_icon_background: "#FFFFFF" # Android 8+ için adaptif ikonun arka plan rengi
   adaptive_icon_background: "#000000" # Siyah arka plan     
-  adaptive_icon_foreground: "C:\\Durugoru\\flutter_application_1\\flutter_application_1\\assets\\app_icon\\logo.png" # İkon görseli yolu
+  adaptive_icon_foreground: "assets/images/logo.png" # İkon görseli yolu
   # adaptive_icon_background: "#ffffff" # Android 8+ için adaptif ikonun arka plan rengi
   # adaptive_icon_foreground: "assets/app_icon/icon_foreground.png" # Android 8+ için adaptif ikonun ön plan görseli
 
 flutter_native_splash:
   color: "#000000" # Başlangıç ekranının arka plan rengi (siyah)
-  background_image: "C:\\Durugoru\\flutter_application_1\\flutter_application_1\\assets\\splash_images\\logo.png" # Tam ekran arka plan görseli (isteğe bağlı)
+  background_image: "assets/images/logo.png" # Tam ekran arka plan görseli (isteğe bağlı)
   # veya background_color: "#FFFFFF" # Arka plan rengi (görsel yerine renk kullanabilirsiniz)
-  image: "C:\\Durugoru\\flutter_application_1\\flutter_application_1\\assets\\splash_images\\logo.png" # Başlangıç ekranında ortalanacak görsel
+  image: "assets/images/logo.png" # Başlangıç ekranında ortalanacak görsel
   # color: "#FFFFFF" # Eski sürüm için arka plan rengi, background_color yerine kullanılırdı
   android: true # Android için başlangıç ekranı oluştur
   ios: false    # iOS için başlangıç ekranı oluştur (isteğiniz üzerine false yaptım)
