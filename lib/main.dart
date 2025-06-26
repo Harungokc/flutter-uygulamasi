@@ -1,20 +1,16 @@
+// main.dart - SON HALİ
+
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:camera/camera.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'dart:async'; // Zamanlayıcı için gerekli import
 
-// Yeni kamera ekranımızı projemize dahil ediyoruz.
 import 'camera_screen.dart';
 
-// Artık bu dosyada TFLite veya görüntü işleme paketlerine ihtiyacımız yok.
-// Onların hepsi camera_screen.dart dosyası tarafından yönetiliyor.
-
-// Uygulama genelinde kullanılacak kamera listesi.
 List<CameraDescription>? cameras;
 
 void main() async {
-  // main fonksiyonunda bir değişiklik yok.
   WidgetsFlutterBinding.ensureInitialized();
   try {
     cameras = await availableCameras();
@@ -35,7 +31,6 @@ class AccessibleApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // AccessibleApp sınıfında bir değişiklik yok.
     return MaterialApp(
       title: 'DuruGörü',
       debugShowCheckedModeBanner: false,
@@ -63,13 +58,12 @@ class DetectionHomePage extends StatefulWidget {
 }
 
 class _DetectionHomePageState extends State<DetectionHomePage> {
-  // DetectionHomePage sınıfının içeriğinde bir değişiklik yok.
-  // Tüm TTS, SpeechToText ve UI mantığı aynı kalıyor.
   final FlutterTts _flutterTts = FlutterTts();
   final SpeechToText _speechToText = SpeechToText();
   bool _isTtsInitialized = false;
   bool _isListening = false;
   Timer? _listeningTimer;
+  bool _isDetectionStarting = false; // Yeniden yönlendirmeyi önlemek için bayrak
 
   @override
   void initState() {
@@ -93,21 +87,9 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
 
   Future<void> _initializeTts() async {
     try {
-      List<dynamic> languages = await _flutterTts.getLanguages;
-      debugPrint("Mevcut diller: $languages");
       await _flutterTts.setLanguage("tr-TR");
-      bool isLanguageSet = await _flutterTts.isLanguageAvailable("tr-TR");
-      if (!isLanguageSet) {
-        await _flutterTts.setLanguage("tr");
-        isLanguageSet = await _flutterTts.isLanguageAvailable("tr");
-      }
-      if (!isLanguageSet) {
-        debugPrint(
-          "Türkçe dil desteği bulunamadı, varsayılan dil kullanılacak.",
-        );
-      }
       await _flutterTts.setSpeechRate(0.5);
-      await _flutterTts.setVolume(0.6);
+      await _flutterTts.setVolume(0.8);
       await _flutterTts.setPitch(1.0);
       setState(() {
         _isTtsInitialized = true;
@@ -117,9 +99,6 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
       );
     } catch (e) {
       debugPrint("TTS başlatma hatası: $e");
-      setState(() {
-        _isTtsInitialized = false;
-      });
     }
   }
 
@@ -129,63 +108,25 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
       onStatus: (val) => debugPrint("Speech to Text Durumu: $val"),
       debugLogging: true,
     );
-    if (hasSpeech) {
-      debugPrint("Speech to Text başarıyla başlatıldı.");
-    } else {
-      debugPrint(
-        "Speech to Text başlatılamadı. Cihaz desteklemiyor olabilir veya izin yok.",
-      );
-    }
     return hasSpeech;
   }
 
   Future<void> _speak(String text) async {
-    if (!_isTtsInitialized) {
-      debugPrint(
-        "TTS henüz başlatılmadı veya başlatılırken hata oluştu. Konuşma yapılamıyor.",
-      );
-      return;
-    }
-    try {
-      await _flutterTts.setLanguage("tr-TR");
-      await _flutterTts.speak(text);
-    } catch (e) {
-      debugPrint("Konuşma hatası: $e");
-      try {
-        await _flutterTts.setLanguage("tr");
-        await _flutterTts.speak(text);
-      } catch (e2) {
-        debugPrint("Alternatif dil ile konuşma hatası: $e2");
-      }
-    }
+    if (!_isTtsInitialized) return;
+    await _flutterTts.speak(text);
   }
 
   void _startListening() async {
-    if (!_speechToText.isAvailable) {
-      debugPrint("Dinleme başlatılamadı: SpeechToText servisi mevcut değil.");
-      return;
-    }
-
-    if (_isListening) {
-      _stopListening();
-      await Future.delayed(const Duration(milliseconds: 200));
-    }
+    if (!_speechToText.isAvailable || _isListening) return;
 
     setState(() {
       _isListening = true;
     });
 
-    if (_isTtsInitialized) {
-      await _speak("Dinliyorum. Lütfen 'başlat' veya 'start' komutunu verin.");
-    }
-
-    await Future.delayed(
-      const Duration(seconds: 6),
-    );
-
+    await _speak("Dinliyorum. Lütfen 'başlat' veya 'start' komutunu verin.");
+    
     _speechToText.listen(
       onResult: (result) {
-        debugPrint("Tanınan metin: ${result.recognizedWords}");
         if (result.recognizedWords.toLowerCase().contains("start") ||
             result.recognizedWords.toLowerCase().contains("başlat")) {
           _startDetection();
@@ -203,13 +144,7 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
 
     _listeningTimer?.cancel();
     _listeningTimer = Timer(const Duration(seconds: 30), () {
-      if (!mounted) return;
-      if (_isListening) {
-        _stopListening();
-        if (_isTtsInitialized) {
-          _speak("Sesli komut dinleme otomatik olarak durduruldu.");
-        }
-      }
+      if (_isListening) _stopListening();
     });
   }
 
@@ -217,21 +152,29 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
     if (!_isListening) return;
     _speechToText.stop();
     _listeningTimer?.cancel();
-    setState(() {
-      _isListening = false;
-    });
+    if(mounted) {
+      setState(() {
+        _isListening = false;
+      });
+    }
     debugPrint("Dinleme durduruldu.");
   }
-
-  // Bu fonksiyon, yeni camera_screen.dart'taki ekranı açar.
-  // Bir önceki adımdaki gibi doğru şekilde ayarlanmış haliyle bırakıyoruz.
+  
   void _startDetection() async {
+    // Eğer zaten bir algılama işlemi başlatılıyorsa, tekrar başlatmayı engelle
+    if (_isDetectionStarting) return;
+
+    setState(() {
+      _isDetectionStarting = true;
+    });
+
     if (_isListening) {
       _stopListening();
     }
     
     if (cameras == null || cameras!.isEmpty) {
       await _speak("Kamera bulunamadı veya kamera izni verilmemiş.");
+      setState(() { _isDetectionStarting = false; }); // Bayrağı sıfırla
       return;
     }
 
@@ -240,13 +183,30 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
     );
 
     if (!mounted) return;
-
+    
+    // --- BURASI GÜNCELLENDİ ---
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CameraScreen(camera: cameras![0]),
+        // CameraScreen'i doğru parametrelerle çağırıyoruz
+        builder: (context) => CameraScreen(
+          camera: cameras![0],
+          flutterTts: _flutterTts, // TTS nesnesini iletiyoruz
+        ),
       ),
-    );
+    ).then((_) {
+      // Kamera ekranından geri dönüldüğünde bu blok çalışır
+      if(mounted) {
+        setState(() {
+          _isDetectionStarting = false; // Bayrağı sıfırla ki tekrar başlatılabilsin
+        });
+        // Tekrar dinlemeyi başlat
+        if (_isTtsInitialized) {
+          _startListening();
+        }
+      }
+    });
+    // --- GÜNCELLEME SONU ---
   }
 
   @override
@@ -259,7 +219,7 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // build metodunda (UI) bir değişiklik yok.
+    // UI kodunda değişiklik yok
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
 
@@ -377,7 +337,3 @@ class _DetectionHomePageState extends State<DetectionHomePage> {
     );
   }
 }
-
-// ESKİ CameraScreen SINIFI BURADAN TAMAMEN KALDIRILDI.
-
-
