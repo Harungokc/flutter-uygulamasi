@@ -75,7 +75,7 @@ void imageProcessor(SendPort sendPort) async {
             }
           }
 
-          if (maxScore > 0.1 &&
+          if (maxScore > 0.5 &&
               bestClassIndex >= 0 &&
               bestClassIndex < labels.length) {
             final rect = Rect.fromLTWH(
@@ -242,9 +242,10 @@ class _CameraScreenState extends State<CameraScreen>
   // Güncellenmiş Türkçe etiketler
   final Map<String, String> _turkishLabels = turkishlabels;
 
-  // --- BURASI EKLENDİ ---
+  // --- SESLİ BİLDİRİM KUYRUĞU VE BEKLEME ---
   final List<String> _ttsQueue = [];
   bool _isSpeaking = false;
+  Timer? _waitTimer;
 
   @override
   void initState() {
@@ -290,7 +291,6 @@ class _CameraScreenState extends State<CameraScreen>
       );
       debugPrint('Yüklenen etiketler: $_labels');
 
-      // İlk birkaç etiketi kontrol et
       if (_labels != null && _labels!.isNotEmpty) {
         debugPrint('İlk 10 etiket: ${_labels!.take(10).toList()}');
       }
@@ -301,7 +301,7 @@ class _CameraScreenState extends State<CameraScreen>
 
   void vibrateForLeft() async {
     if (await Vibration.hasCustomVibrationsSupport()) {
-      Vibration.vibrate(pattern: [0, 100, 50, 100, 50, 100]); // Kısa-kesik seri
+      Vibration.vibrate(pattern: [0, 100, 50, 100, 50, 100]);
     } else {
       Vibration.vibrate();
     }
@@ -309,7 +309,7 @@ class _CameraScreenState extends State<CameraScreen>
 
   void vibrateForRight() async {
     if (await Vibration.hasCustomVibrationsSupport()) {
-      Vibration.vibrate(pattern: [0, 300, 100, 300]); // Uzun-uzun
+      Vibration.vibrate(pattern: [0, 300, 100, 300]);
     } else {
       Vibration.vibrate();
     }
@@ -317,7 +317,7 @@ class _CameraScreenState extends State<CameraScreen>
 
   void vibrateForFront() async {
     if (await Vibration.hasCustomVibrationsSupport()) {
-      Vibration.vibrate(pattern: [0, 500]); // Tek uzun
+      Vibration.vibrate(pattern: [0, 500]);
     } else {
       Vibration.vibrate();
     }
@@ -336,36 +336,40 @@ class _CameraScreenState extends State<CameraScreen>
     });
   }
 
-  // --- BU METOTLAR EKLENDİ ---
   void _enqueueTts(String text) {
-    _ttsQueue.clear(); // Yeni cümle gelince önceki iptal edilir
-    _ttsQueue.add(text);
-    _processTtsQueue();
+    if (_isSpeaking) {
+      // Konuşma devam ediyorsa kuyruğu temizle, en güncel metni koy
+      _ttsQueue.clear();
+      _ttsQueue.add(text);
+    } else {
+      _ttsQueue.add(text);
+      _processTtsQueue();
+    }
   }
 
   void _processTtsQueue() async {
     if (_isSpeaking) return;
     if (_ttsQueue.isEmpty) return;
 
-    _isSpeaking = true;
     final text = _ttsQueue.removeAt(0);
+    _isSpeaking = true;
 
     await widget.flutterTts.awaitSpeakCompletion(true);
     await widget.flutterTts.speak(text);
 
     widget.flutterTts.setCompletionHandler(() {
-      _isSpeaking = false;
-      _processTtsQueue();
+      _waitTimer = Timer(const Duration(seconds: 4), () {
+        _isSpeaking = false;
+        _processTtsQueue();
+      });
     });
   }
 
   void _handleDetectionResults(List<Map<String, dynamic>> results) {
     if (results.isEmpty || !mounted) return;
 
-    // En güvenilir tespiti al
     final bestResult = results.first;
 
-    // Rect verisi Map olarak geliyor, Rect nesnesine dönüştür
     final rectMap = bestResult['rect'] as Map<String, dynamic>;
     final rect = Rect.fromLTWH(
       rectMap['left'] as double,
@@ -375,9 +379,7 @@ class _CameraScreenState extends State<CameraScreen>
     );
 
     final centerX = rect.center.dx;
-    debugPrint("Nesne x konumu (center.dx): $centerX");
 
-    // Konum hesaplama, 0-1 arası normalize olmuş varsayıyoruz
     String position;
     if (centerX < 0.33) {
       position = "solunuzda";
@@ -390,16 +392,11 @@ class _CameraScreenState extends State<CameraScreen>
     final label = bestResult['label'] as String;
     final turkishLabel = _turkishLabels[label] ?? label;
 
-    // Mesafe tahmini (0-1 arası normalize boydan, tahmini metre)
     final height = rect.height.clamp(0.001, 1.0);
-    final double k = 0.8; // deneysel sabit, artırıp azaltabilirsin
-    final distanceMeters = _smoothDistance(
-      (k / height).clamp(0.5, 15.0),
-    ); // tahmini 0.5m - 15m arası
+    final double k = 0.8;
+    final distanceMeters = _smoothDistance((k / height).clamp(0.5, 15.0));
 
-    final formattedDistance = distanceMeters.toStringAsFixed(
-      1,
-    ); // virgülden sonra 1 hane
+    final formattedDistance = distanceMeters.toStringAsFixed(1);
 
     final now = DateTime.now();
 
@@ -418,7 +415,7 @@ class _CameraScreenState extends State<CameraScreen>
         "Yaklaşık $formattedDistance metre $position bir $turkishLabel var";
 
     debugPrint("Sesli Bildirim: $announcement");
-    _enqueueTts(announcement); // Burada speak yerine kuyruğa alıyoruz
+    _enqueueTts(announcement);
 
     if (position == "solunuzda") {
       vibrateForLeft();
@@ -430,7 +427,7 @@ class _CameraScreenState extends State<CameraScreen>
 
     // Eski kayıtları temizle
     _lastAnnouncementTimes.removeWhere(
-      (key, value) => now.difference(value) > Duration(minutes: 5),
+      (key, value) => now.difference(value) > const Duration(minutes: 5),
     );
   }
 
@@ -444,6 +441,7 @@ class _CameraScreenState extends State<CameraScreen>
     }
     _controller.dispose();
     _interpreter?.close();
+    _waitTimer?.cancel();
     super.dispose();
   }
 
@@ -490,7 +488,6 @@ class _CameraScreenState extends State<CameraScreen>
             return Stack(
               children: [
                 CameraPreview(_controller),
-                // Debug bilgisi (isteğe bağlı)
                 Positioned(
                   top: 10,
                   left: 10,
