@@ -289,15 +289,27 @@ class _CameraScreenState extends State<CameraScreen>
     }
   }
 
-  void _triggerVibration(String position) async {
-    if (await Vibration.hasVibrator()) {
-      if (position == "solunuzda") {
-        Vibration.vibrate(pattern: [0, 100, 50, 100]); // kısa-kısa
-      } else if (position == "önünüzde") {
-        Vibration.vibrate(duration: 300); // uzun titreşim
-      } else if (position == "sağınızda") {
-        Vibration.vibrate(pattern: [0, 100, 50, 100, 50, 100]); // yoğun sağ
-      }
+  void vibrateForLeft() async {
+    if (await Vibration.hasCustomVibrationsSupport()) {
+      Vibration.vibrate(pattern: [0, 100, 50, 100, 50, 100]); // Kısa-kesik seri
+    } else {
+      Vibration.vibrate();
+    }
+  }
+
+  void vibrateForRight() async {
+    if (await Vibration.hasCustomVibrationsSupport()) {
+      Vibration.vibrate(pattern: [0, 300, 100, 300]); // Uzun-uzun
+    } else {
+      Vibration.vibrate();
+    }
+  }
+
+  void vibrateForFront() async {
+    if (await Vibration.hasCustomVibrationsSupport()) {
+      Vibration.vibrate(pattern: [0, 500]); // Tek uzun
+    } else {
+      Vibration.vibrate();
     }
   }
 
@@ -361,7 +373,14 @@ class _CameraScreenState extends State<CameraScreen>
     final announcement = "$position bir $turkishLabel var";
     debugPrint("Sesli Bildirim: $announcement");
     widget.flutterTts.speak(announcement);
-    _triggerVibration(position);
+
+    if (position == "solunuzda") {
+      vibrateForLeft();
+    } else if (position == "sağınızda") {
+      vibrateForRight();
+    } else {
+      vibrateForFront();
+    }
 
     // Eski kayıtları temizle
     _lastAnnouncementTimes.removeWhere(
