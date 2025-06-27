@@ -16,6 +16,7 @@ dependencies:
   speech_to_text: ^7.0.0 # ✅ Sesli komut algılama paketi eklendi
   image: ^4.1.7 # ✅ Görüntü işleme için image paketi eklendi
   tflite_flutter: 0.11.0 # ✅ TensorFlow Lite Flutter paketi eklendi
+  vibration: ^3.1.3 # ✅ Titreşim desteği için vibration paketi eklendi
 
 
 dev_dependencies:
