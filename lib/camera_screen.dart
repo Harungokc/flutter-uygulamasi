@@ -357,6 +357,18 @@ class _CameraScreenState extends State<CameraScreen>
     final label = bestResult['label'] as String;
     final turkishLabel = _turkishLabels[label] ?? label;
 
+    // Mesafe tahmini (0-1 arası normalize boydan, tahmini metre)
+    final height = rect.height.clamp(0.001, 1.0);
+    final double k = 0.8; // deneysel sabit, artırıp azaltabilirsin
+    final distanceMeters = (k / height).clamp(
+      0.5,
+      15.0,
+    ); // tahmini 0.5m - 15m arası
+
+    final formattedDistance = distanceMeters.toStringAsFixed(
+      1,
+    ); // virgülden sonra 1 hane
+
     final now = DateTime.now();
 
     final key = "$label-$position";
@@ -370,7 +382,9 @@ class _CameraScreenState extends State<CameraScreen>
 
     _lastAnnouncementTimes[key] = now;
 
-    final announcement = "$position bir $turkishLabel var";
+    final announcement =
+        "Yaklaşık $formattedDistance metre $position bir $turkishLabel var";
+
     debugPrint("Sesli Bildirim: $announcement");
     widget.flutterTts.speak(announcement);
 
