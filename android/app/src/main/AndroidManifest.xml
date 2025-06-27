@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.camera" />
+    <uses-permission android:name="android.permission.VIBRATE"/>
+
 
     <application
         android:label="DuruGörü"

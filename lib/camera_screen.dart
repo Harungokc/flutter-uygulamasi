@@ -1,5 +1,5 @@
 // camera_screen.dart - TESPİT SORUNLARI DÜZELTİLDİ
-
+import 'dart:math' as math;
 import 'dart:async';
 import 'dart:isolate';
 import 'package:camera/camera.dart';
@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:image/image.dart' as img_lib;
 import 'package:tflite_flutter/tflite_flutter.dart';
+import 'package:vibration/vibration.dart';
 
 // Isolate'a veri göndermek için kullanılan sınıf
 class IsolateData {
@@ -22,75 +23,97 @@ void imageProcessor(SendPort sendPort) async {
   final port = ReceivePort();
   sendPort.send(port.sendPort);
 
-  await for (final IsolateData isolateData in port) {
-    final cameraImage = isolateData.cameraImage;
-    final interpreter = Interpreter.fromAddress(isolateData.interpreterAddress);
-    final labels = isolateData.labels;
+  Interpreter? interpreter; // Interpreter başta null
 
-    try {
-      final input = await _preprocessImage(cameraImage);
-      final output = List.filled(1 * 84 * 8400, 0.0).reshape([1, 84, 8400]);
+  port.listen((dynamic data) async {
+    if (data is IsolateData) {
+      // Interpreter daha önce oluşturulmamışsa oluştur
+      interpreter ??= Interpreter.fromAddress(data.interpreterAddress);
 
-      interpreter.run(input, output);
+      final cameraImage = data.cameraImage;
+      final labels = data.labels;
 
-      // Modelin çıktısını işle
-      final List<List<dynamic>> outputMatrix = output[0];
-      final List<List<double>> typedMatrix = outputMatrix
-          .map((row) => List<double>.from(row))
-          .toList();
-      final transposedOutput = _transpose(typedMatrix);
+      try {
+        final input = await _preprocessImage(cameraImage);
+        final output = List.filled(1 * 84 * 8400, 0.0).reshape([1, 84, 8400]);
 
-      final List<Map<String, dynamic>> results = [];
+        interpreter!.run(input, output);
 
-      // Her tespit için döngü
-      for (var i = 0; i < transposedOutput.length; i++) {
-        final detection = transposedOutput[i];
+        // Modelin çıktısını işle
+        final List<List<double>> typedMatrix = (output[0] as List)
+            .map<List<double>>((e) => List<double>.from(e))
+            .toList();
 
-        // İlk 4 değer bounding box koordinatları
-        final box = detection.sublist(0, 4);
-        // Geri kalan değerler sınıf puanları
-        final scores = detection.sublist(4);
+        final transposedOutput = _transpose(typedMatrix);
 
-        var maxScore = 0.0;
-        var bestClassIndex = -1;
+        final List<Map<String, dynamic>> results = [];
 
-        // En yüksek puanlı sınıfı bul
-        for (var j = 0; j < scores.length; j++) {
-          if (scores[j] > maxScore) {
-            maxScore = scores[j];
-            bestClassIndex = j;
+        for (var i = 0; i < transposedOutput.length; i++) {
+          final detection = transposedOutput[i];
+
+          final box = detection.sublist(0, 4);
+          final scores = detection.sublist(4);
+
+          var maxScore = 0.0;
+          var bestClassIndex = -1;
+
+          for (var j = 0; j < scores.length; j++) {
+            if (scores[j] > maxScore) {
+              maxScore = scores[j];
+              bestClassIndex = j;
+            }
+          }
+
+          if (maxScore > 0.1 &&
+              bestClassIndex >= 0 &&
+              bestClassIndex < labels.length) {
+            final rect = Rect.fromLTWH(
+              box[1] - box[3] / 2, // x - width/2
+              box[0] - box[2] / 2, // y - height/2
+              box[3], // width
+              box[2], // height
+            );
+            results.add({
+              "rect": rect,
+              "label": labels[bestClassIndex],
+              "confidence": maxScore,
+              "classIndex": bestClassIndex,
+            });
           }
         }
 
-        // Güven eşiğini kontrol et (0.5'e çıkardım daha kararlı tespit için)
-        if (maxScore > 0.5 &&
-            bestClassIndex >= 0 &&
-            bestClassIndex < labels.length) {
-          // Bounding box'ı normalize et
-          final rect = Rect.fromLTWH(
-            (box[0] - box[2] / 2) / 640.0, // x_center - width/2
-            (box[1] - box[3] / 2) / 640.0, // y_center - height/2
-            box[2] / 640.0, // width
-            box[3] / 640.0, // height
-          );
+        final suppressed = nonMaximumSuppression(results, 0.5);
 
-          // Geçerli tespit sonucunu ekle
-          results.add({
-            "rect": rect,
-            "label": labels[bestClassIndex],
-            "confidence": maxScore,
-            "classIndex": bestClassIndex,
-          });
-        }
+        final mappedResults = suppressed.map((detection) {
+          final rect = detection['rect'] as Rect;
+          return {
+            'label': detection['label'],
+            'score':
+                detection['confidence'], // confidence değil score kullandığın için değiştirdim
+            'rect': {
+              'left': rect.left,
+              'top': rect.top,
+              'width': rect.width,
+              'height': rect.height,
+            },
+          };
+        }).toList();
+
+        sendPort.send(mappedResults);
+      } catch (e) {
+        debugPrint("Görüntü işleme hatası: $e");
+        sendPort.send([]);
       }
-
-      sendPort.send(results);
-    } catch (e) {
-      debugPrint("Tespit işlemi sırasında hata: $e");
-      sendPort.send(<Map<String, dynamic>>[]);
+    } else if (data == 'dispose') {
+      // Dispose talebi gelirse interpreter'ı kapat ve portu kapat
+      interpreter?.close();
+      interpreter = null;
+      port.close();
     }
-  }
+  });
 }
+
+// ... [Kodun geri kalımı aynı kalır]
 
 Future<List<List<List<List<double>>>>> _preprocessImage(
   CameraImage image,
@@ -343,6 +366,7 @@ class _CameraScreenState extends State<CameraScreen>
       debugPrint(
         'Model ve etiketler başarıyla yüklendi: ${_labels?.length} sınıf bulundu.',
       );
+      debugPrint('Yüklenen etiketler: $_labels');
 
       // İlk birkaç etiketi kontrol et
       if (_labels != null && _labels!.isNotEmpty) {
@@ -350,6 +374,18 @@ class _CameraScreenState extends State<CameraScreen>
       }
     } catch (e) {
       debugPrint('Model veya etiketler yüklenirken hata oluştu: $e');
+    }
+  }
+
+  void _triggerVibration(String position) async {
+    if (await Vibration.hasVibrator()) {
+      if (position == "solunuzda") {
+        Vibration.vibrate(pattern: [0, 100, 50, 100]); // kısa-kısa
+      } else if (position == "önünüzde") {
+        Vibration.vibrate(duration: 300); // uzun titreşim
+      } else if (position == "sağınızda") {
+        Vibration.vibrate(pattern: [0, 100, 50, 100, 50, 100]); // yoğun sağ
+      }
     }
   }
 
@@ -369,45 +405,53 @@ class _CameraScreenState extends State<CameraScreen>
   void _handleDetectionResults(List<Map<String, dynamic>> results) {
     if (results.isEmpty || !mounted) return;
 
-    // Güven puanına göre sırala (en yüksek önce)
-    results.sort(
-      (a, b) =>
-          (b['confidence'] as double).compareTo(a['confidence'] as double),
-    );
-
     // En güvenilir tespiti al
     final bestResult = results.first;
-    final String label = bestResult['label'];
-    final double confidence = bestResult['confidence'];
-    final int classIndex = bestResult['classIndex'] ?? -1;
 
-    debugPrint(
-      "Tespit edildi: $label (İndeks: $classIndex), Güven: ${(confidence * 100).toStringAsFixed(1)}%",
+    // Rect verisi Map olarak geliyor, Rect nesnesine dönüştür
+    final rectMap = bestResult['rect'] as Map<String, dynamic>;
+    final rect = Rect.fromLTWH(
+      rectMap['left'] as double,
+      rectMap['top'] as double,
+      rectMap['width'] as double,
+      rectMap['height'] as double,
     );
+
+    final centerX = rect.center.dx;
+    debugPrint("Nesne x konumu (center.dx): $centerX");
+
+    // Konum hesaplama, 0-1 arası normalize olmuş varsayıyoruz
+    String position;
+    if (centerX < 0.33) {
+      position = "solunuzda";
+    } else if (centerX > 0.66) {
+      position = "sağınızda";
+    } else {
+      position = "önünüzde";
+    }
+
+    final label = bestResult['label'] as String;
+    final turkishLabel = _turkishLabels[label] ?? label;
 
     final now = DateTime.now();
 
-    // Bu nesne için son duyuru zamanını kontrol et
-    if (_lastAnnouncementTimes.containsKey(label)) {
-      final timeDiff = now.difference(_lastAnnouncementTimes[label]!);
+    final key = "$label-$position";
+
+    if (_lastAnnouncementTimes.containsKey(key)) {
+      final timeDiff = now.difference(_lastAnnouncementTimes[key]!);
       if (timeDiff < _announcementCooldown) {
         return; // Çok erken, duyuru yapma
       }
     }
 
-    // Türkçe etiketi al
-    final String turkishLabel = _turkishLabels[label] ?? label;
+    _lastAnnouncementTimes[key] = now;
 
-    // Sesli bildirimi yap
-    final String announcement = "Önünüzde bir $turkishLabel var";
+    final announcement = "$position bir $turkishLabel var";
     debugPrint("Sesli Bildirim: $announcement");
-
     widget.flutterTts.speak(announcement);
+    _triggerVibration(position);
 
-    // Son duyuru zamanını güncelle
-    _lastAnnouncementTimes[label] = now;
-
-    // Eski kayıtları temizle (bellek yönetimi için)
+    // Eski kayıtları temizle
     _lastAnnouncementTimes.removeWhere(
       (key, value) => now.difference(value) > Duration(minutes: 5),
     );
@@ -508,4 +552,52 @@ class _CameraScreenState extends State<CameraScreen>
       ),
     );
   }
+}
+
+double _calculateIoU(Rect a, Rect b) {
+  final double xA = math.max(a.left, b.left);
+  final double yA = math.max(a.top, b.top);
+  final double xB = math.min(a.right, b.right);
+  final double yB = math.min(a.bottom, b.bottom);
+
+  final double interArea = math.max(0, xB - xA) * math.max(0, yB - yA);
+  final double boxAArea = a.width * a.height;
+  final double boxBArea = b.width * b.height;
+
+  final double iou = interArea / (boxAArea + boxBArea - interArea);
+  return iou;
+}
+
+List<Map<String, dynamic>> nonMaximumSuppression(
+  List<Map<String, dynamic>> detections,
+  double iouThreshold,
+) {
+  detections.sort(
+    (a, b) => (b['confidence'] as double).compareTo(a['confidence'] as double),
+  );
+
+  final List<Map<String, dynamic>> finalDetections = [];
+
+  for (var i = 0; i < detections.length; i++) {
+    final current = detections[i];
+    bool shouldAdd = true;
+
+    for (var j = 0; j < finalDetections.length; j++) {
+      final existing = finalDetections[j];
+
+      if (current['classIndex'] == existing['classIndex']) {
+        final iou = _calculateIoU(current['rect'], existing['rect']);
+        if (iou > iouThreshold) {
+          shouldAdd = false;
+          break;
+        }
+      }
+    }
+
+    if (shouldAdd) {
+      finalDetections.add(current);
+    }
+  }
+
+  return finalDetections;
 }
