@@ -19,16 +19,27 @@ class IsolateData {
   IsolateData(this.cameraImage, this.interpreterAddress, this.labels);
 }
 
+// Uzaklık tahmini için son 5 değeri tut
+List<double> _distanceBuffer = [];
+const int _bufferLimit = 5;
+
+double _smoothDistance(double newDistance) {
+  _distanceBuffer.add(newDistance);
+  if (_distanceBuffer.length > _bufferLimit) {
+    _distanceBuffer.removeAt(0);
+  }
+  return _distanceBuffer.reduce((a, b) => a + b) / _distanceBuffer.length;
+}
+
 // Ayrı bir iş parçacığında (Isolate) çalışacak olan görüntü işleme fonksiyonu
 void imageProcessor(SendPort sendPort) async {
   final port = ReceivePort();
   sendPort.send(port.sendPort);
 
-  Interpreter? interpreter; // Interpreter başta null
+  Interpreter? interpreter;
 
   port.listen((dynamic data) async {
     if (data is IsolateData) {
-      // Interpreter daha önce oluşturulmamışsa oluştur
       interpreter ??= Interpreter.fromAddress(data.interpreterAddress);
 
       final cameraImage = data.cameraImage;
@@ -40,7 +51,6 @@ void imageProcessor(SendPort sendPort) async {
 
         interpreter!.run(input, output);
 
-        // Modelin çıktısını işle
         final List<List<double>> typedMatrix = (output[0] as List)
             .map<List<double>>((e) => List<double>.from(e))
             .toList();
@@ -69,10 +79,10 @@ void imageProcessor(SendPort sendPort) async {
               bestClassIndex >= 0 &&
               bestClassIndex < labels.length) {
             final rect = Rect.fromLTWH(
-              box[1] - box[3] / 2, // x - width/2
-              box[0] - box[2] / 2, // y - height/2
-              box[3], // width
-              box[2], // height
+              box[1] - box[3] / 2,
+              box[0] - box[2] / 2,
+              box[3],
+              box[2],
             );
             results.add({
               "rect": rect,
@@ -89,8 +99,7 @@ void imageProcessor(SendPort sendPort) async {
           final rect = detection['rect'] as Rect;
           return {
             'label': detection['label'],
-            'score':
-                detection['confidence'], // confidence değil score kullandığın için değiştirdim
+            'score': detection['confidence'],
             'rect': {
               'left': rect.left,
               'top': rect.top,
@@ -106,15 +115,12 @@ void imageProcessor(SendPort sendPort) async {
         sendPort.send([]);
       }
     } else if (data == 'dispose') {
-      // Dispose talebi gelirse interpreter'ı kapat ve portu kapat
       interpreter?.close();
       interpreter = null;
       port.close();
     }
   });
 }
-
-// ... [Kodun geri kalımı aynı kalır]
 
 Future<List<List<List<List<double>>>>> _preprocessImage(
   CameraImage image,
@@ -236,6 +242,10 @@ class _CameraScreenState extends State<CameraScreen>
   // Güncellenmiş Türkçe etiketler
   final Map<String, String> _turkishLabels = turkishlabels;
 
+  // --- BURASI EKLENDİ ---
+  final List<String> _ttsQueue = [];
+  bool _isSpeaking = false;
+
   @override
   void initState() {
     super.initState();
@@ -326,6 +336,29 @@ class _CameraScreenState extends State<CameraScreen>
     });
   }
 
+  // --- BU METOTLAR EKLENDİ ---
+  void _enqueueTts(String text) {
+    _ttsQueue.clear(); // Yeni cümle gelince önceki iptal edilir
+    _ttsQueue.add(text);
+    _processTtsQueue();
+  }
+
+  void _processTtsQueue() async {
+    if (_isSpeaking) return;
+    if (_ttsQueue.isEmpty) return;
+
+    _isSpeaking = true;
+    final text = _ttsQueue.removeAt(0);
+
+    await widget.flutterTts.awaitSpeakCompletion(true);
+    await widget.flutterTts.speak(text);
+
+    widget.flutterTts.setCompletionHandler(() {
+      _isSpeaking = false;
+      _processTtsQueue();
+    });
+  }
+
   void _handleDetectionResults(List<Map<String, dynamic>> results) {
     if (results.isEmpty || !mounted) return;
 
@@ -360,9 +393,8 @@ class _CameraScreenState extends State<CameraScreen>
     // Mesafe tahmini (0-1 arası normalize boydan, tahmini metre)
     final height = rect.height.clamp(0.001, 1.0);
     final double k = 0.8; // deneysel sabit, artırıp azaltabilirsin
-    final distanceMeters = (k / height).clamp(
-      0.5,
-      15.0,
+    final distanceMeters = _smoothDistance(
+      (k / height).clamp(0.5, 15.0),
     ); // tahmini 0.5m - 15m arası
 
     final formattedDistance = distanceMeters.toStringAsFixed(
@@ -386,7 +418,7 @@ class _CameraScreenState extends State<CameraScreen>
         "Yaklaşık $formattedDistance metre $position bir $turkishLabel var";
 
     debugPrint("Sesli Bildirim: $announcement");
-    widget.flutterTts.speak(announcement);
+    _enqueueTts(announcement); // Burada speak yerine kuyruğa alıyoruz
 
     if (position == "solunuzda") {
       vibrateForLeft();
