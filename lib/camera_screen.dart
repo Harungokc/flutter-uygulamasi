@@ -246,6 +246,7 @@ class _CameraScreenState extends State<CameraScreen>
   final List<String> _ttsQueue = [];
   bool _isSpeaking = false;
   Timer? _waitTimer;
+  String? _pendingVibrationDirection;
 
   @override
   void initState() {
@@ -336,9 +337,10 @@ class _CameraScreenState extends State<CameraScreen>
     });
   }
 
-  void _enqueueTts(String text) {
+  void _enqueueTts(String text, String position) {
+    _pendingVibrationDirection = position;
+
     if (_isSpeaking) {
-      // Konuşma devam ediyorsa kuyruğu temizle, en güncel metni koy
       _ttsQueue.clear();
       _ttsQueue.add(text);
     } else {
@@ -360,6 +362,23 @@ class _CameraScreenState extends State<CameraScreen>
     widget.flutterTts.setCompletionHandler(() {
       _waitTimer = Timer(const Duration(seconds: 4), () {
         _isSpeaking = false;
+
+        // Bekleme süresi sonunda titreşim uygula
+        if (_pendingVibrationDirection != null) {
+          switch (_pendingVibrationDirection) {
+            case "solunuzda":
+              vibrateForLeft();
+              break;
+            case "sağınızda":
+              vibrateForRight();
+              break;
+            case "önünüzde":
+              vibrateForFront();
+              break;
+          }
+          _pendingVibrationDirection = null;
+        }
+
         _processTtsQueue();
       });
     });
@@ -415,7 +434,7 @@ class _CameraScreenState extends State<CameraScreen>
         "Yaklaşık $formattedDistance metre $position bir $turkishLabel var";
 
     debugPrint("Sesli Bildirim: $announcement");
-    _enqueueTts(announcement);
+    _enqueueTts(announcement, position);
 
     if (position == "solunuzda") {
       vibrateForLeft();
